@@ -1,1 +1,34 @@
+# Example & Templates
+.env.example
 
+CLAY_API_KEY=xxxx
+APIFY_TOKEN=xxxx
+INSTANTLY_API_KEY=xxxx
+BOUNCEMAN_API_KEY=xxxx
+MILLIONVERIFIER_API_KEY=xxxx
+EMAILGUARD_API_KEY=xxxx
+AIRTABLE_API_KEY=xxxx
+SLACK_BOT_TOKEN=xoxb-...
+SALESFORCE_CLIENT_ID=...
+SALESFORCE_CLIENT_SECRET=...
+SALESFORCE_REFRESH_TOKEN=...
+
+Clay → Instantly export mapping (CSV)
+
+email,first_name,company,intro_line,body_text,subject,agent_id,route,campaign_tag
+jane@acme.com,Jane,Acme,"Saw Acme focuses on payer analytics for RCM teams...","<generated-body>","Quick idea re: denials",C-longform-v3,google→google,Doctors-UK
+
+Slack Block Kit: 
+
+{
+  "blocks": [
+    {"type":"header","text":{"type":"plain_text","text":"Interested: Jane Doe @ Acme Health"}},
+    {"type":"section","fields":[
+      {"type":"mrkdwn","text":"*Email:*\n<mailto:jane@acmehealth.com|jane@acmehealth.com>"},
+      {"type":"mrkdwn","text":"*Phone:*\n+1-415-555-0199"},
+      {"type":"mrkdwn","text":"*Campaign:*\ninst_9f12a"},
+      {"type":"mrkdwn","text":"*Route:*\ngoogle→google"}
+    ]},
+    {"type":"section","text":{"type":"mrkdwn","text":"Snippet: _“This is timely—can you share a 1-pager?”_"}}
+  ]
+}

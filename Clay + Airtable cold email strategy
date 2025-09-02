@@ -1,0 +1,434 @@
+<h1>Hyper-detailed outline (exhaustive structure & details)</h1>
+A. Tech stack & roles
+
+Data & Automation: Clay (tables, webhooks, lookups, Claygen), Google Sheets (interim dedupe store), Airtable (global dashboards).
+
+Sequencers: Instantly (primary), Smartlead (secondary), Bison (also used; some replies lack linkbacks).
+
+Verification: MillionVerifier + BounceMan (API via Clay).
+
+Scraping / Sourcing: Apify (Apollo Scraper by CodeCrafter) against Apollo URLs; Claygen for LinkedIn/company data extraction; StoreLeads (mentioned as a source signal).
+
+Enrichment: LinkedIn (company + personal), Instagram follower counts (via Claygen where needed), mobile numbers (phone append).
+
+Comms & Handoffs: Slack (internal + client channels), WhatsApp (team outreach notices), Hoop (captures Slack/email to-dos), Salesforce (CRM of record for some clients).
+
+Deliverability Intel: EmailGuard API for ESP mapping; exclude Outlook targets as needed; measure Google→Google, custom→Outlook, etc.
+
+B. Data sourcing at scale
+
+Generate Apollo searches; copy the Apollo result URL(s).
+
+Run Apify > Apollo Scraper by CodeCrafter (no Apollo login required) at ~$1.20 / 1k; plan budget (e.g., $1k/mo tier).
+
+Output feeds directly into Clay tables (preferred) or CSV → Clay.
+
+Maintain a Google Sheets master for cross-campaign dedupe (VLOOKUP by email/domain + timestamp, last touched campaign, last sequencer).
+
+C. Data processing flow (Clay)
+
+De-dupe & suppression
+
+Clay lookup to Instantly existing campaigns (exclude previously targeted recent rows).
+
+VLOOKUP against Google Sheets master to suppress previously processed leads; record first-seen & last-seen.
+
+Verification
+
+Call MillionVerifier then BounceMan via API; record result, reason, raw codes; only pass valid/risky as policy dictates; aim for ~1% overall bounce.
+
+Enrichment
+
+Use Claygen “help me” to pull LinkedIn company & personal fields (headline, description, industry, employee count, tech tags); cost target ~$0.004 per profile.
+
+Optional Instagram follower count via Claygen; store numeric value + last-checked date.
+
+Phone append for mobile when “Interested/Reply” is detected (enable SDR call-through).
+
+ESP mapping
+
+Query EmailGuard API on sender mailbox domains and recipient MX/ESP; store sender_esp, recipient_esp, route (e.g., G→G).
+
+Flag Outlook recipients for exclusion when policy requires.
+
+Routing
+
+Build round-robin columns in Clay for copy variant assignment (agent A/B/C and subject A/B).
+
+Split by industry/region persona (e.g., doctors UK long-form bucket).
+
+D. Copy & agents
+
+Agent library in Octave
+
+Each agent = one prompt + variables: {first_name}, {company}, {value_prop}, {social_proof}, {trigger}, {CTA}.
+
+Baselines: “Internal Discussion”, “Josh Braun style”, “Long-form (regulated/clinical)”.
+
+Personalization tactic
+
+First line = LinkedIn company description summary with one unique detail; fallback to role-relevant observation.
+
+Assembly
+
+In Clay, call agent API to generate body only (most flexible) or full email (when CTAs & greeting fixed).
+
+Insert dynamic intro/CTA/spin-tax at sequencer level when body-only.
+
+Variant testing
+
+Week 1: test body variants (A/B/C) + 1 subject.
+
+Week 2: keep winner body; test subject lines (A/B/C).
+
+Track at row level: agent_id, subject_id, sequence_id, send_time.
+
+E. Sequencing: Instantly (primary), Bison/Smartlead (as needed)
+
+Build separate campaigns per persona/ESP route (e.g., G→G).
+
+Daily cap per mailbox; staggered schedules.
+
+Exclude Outlook recipients where policy set.
+
+Drop unique body per row; ensure copy uniqueness (avoid fingerprinting).
+
+Record message ID & campaign ID in Clay.
+
+F. Reply capture & downstream workflow
+
+Clay webhook subscribes to Instantly & Bison reply events; ingest all replies (incl. foreign languages).
+
+Normalize: thread ID, mailbox, recipient, campaign, timestamp, raw text.
+
+Classify: Interested / Not Interested / Referral / OOO / Bounce (secondary) using rules or LLM.
+
+Enrich Interested with:
+
+Phone append
+
+Social links
+
+Any CRM IDs (if known)
+
+Slack notifications
+
+Post to internal #hot-replies and client’s Slack channel (per-client).
+
+CRM push
+
+For clients that require: push Interested into Salesforce (map all enrichment fields + source campaign).
+
+SDR Play
+
+Immediate call for rows with mobile; book on first call when possible.
+
+G. Deliverability management
+
+Maintain Airtable dashboard for:
+
+ESP route outcomes (open/reply rate by G→G, custom→Outlook, etc.).
+
+Bounce rate by verification pathway.
+
+Template performance by week & persona.
+
+Adjust domain pools, recipient exclusions, send windows weekly based on dashboard.
+
+Treat copy uniqueness as a deliverability lever (reduce repeats; inject spin-tax or agent variety).
+
+H. TAM, cadence & re-engagement
+
+Window: Revisit non-engaged leads ~90 days later with a different offer/copy.
+
+Use Instantly lookup for last-contacted date; suppress <90d.
+
+Maintain Google Sheets “evergreen” ledger until a relational DB exists.
+
+I. Organization & governance
+
+Hoop to capture Slack/email To-Dos per client; not WhatsApp.
+
+WhatsApp used for quick “we’re starting” notices; non-system of record.
+
+Compliance: avoid scraping personal sensitive data; respect platforms’ terms; models may block personal PII extraction.
+
+Document SOPs for all integrations (Apify → Clay, Clay → Instantly/Bison/Smartlead, Clay → Slack/Salesforce).
+
+J. Known gaps / wishes
+
+True relational data store inside Clay (rumored); until then: Google Sheets + Airtable.
+
+Apify → webhook direct write-back: currently not ideal; explored vector DBs; future work item.
+
+3) Comprehensive action plan (step-by-step, with “tiny details”)
+
+Goal: Stand up a scalable, data-driven outbound engine using Clay, Instantly, Apify, Octave agents, MillionVerifier/BounceMan, EmailGuard, Airtable, Slack, Salesforce, Hoop; generate consistent interested replies and meetings, while keeping bounces ≈1% and improving deliverability weekly.
+
+Phase 0 — Prep (Days 1–3)
+
+Owners: Marketing Ops (MOps), RevOps, Data Eng, SDR Lead, Copy Lead
+
+Create project spaces
+
+Slack channels: #outbound-core, #hot-replies, per-client #client-<name>-replies.
+
+Hoop: add each Slack channel + your outbound mailbox to capture to-dos.
+
+Accounts & access
+
+Clay (admin + API keys), Instantly, Smartlead (if needed), Bison (if needed), Apify (fund $1k tier), Airtable base, Salesforce sandbox creds, EmailGuard API key, MillionVerifier, BounceMan, Octave agent workspace, Google Sheets master ledger.
+
+Mailbox pools
+
+Warm mailboxes and set sending windows. Tag each with ESP (sender_esp).
+
+Phase 1 — Data sourcing pipeline (Days 4–7)
+
+Build Apollo searches per ICP and export search URLs.
+
+Apify runs
+
+Actor: Apollo Scraper by CodeCrafter (no Apollo login).
+
+Batch size: 50k per run; cost target: $1.20 / 1k.
+
+Configure output → Clay ingest (CSV or direct).
+
+Clay table design
+
+lead_id, email, domain, first_name, last_name, title, company, company_linkedin_url, person_linkedin_url, region, industry, source_url, first_seen_at.
+
+Add suppressed_reason, suppressed_at, last_contacted_at, last_campaign_id.
+
+Master dedupe
+
+Google Sheets “Evergreen Ledger”: columns email, first_seen_at, last_touched_at, last_sequencer, last_result.
+
+In Clay: VLOOKUP (via Sheets connector) to suppress if last_touched_at < 90d.
+
+Phase 2 — Hygiene & enrichment (Days 8–10)
+
+Verification sequence
+
+Clay step 1: MillionVerifier API → mv_status, mv_reason.
+
+If not valid: Clay step 2: BounceMan API → bm_status, bm_reason.
+
+Keep rows with valid (and optionally risky: catch-all) to hit ~1% bounce rate.
+
+LinkedIn enrichment (cheap)
+
+Claygen “help me” configured to visit company_linkedin_url and person_linkedin_url.
+
+Extract: company description (cleaned), size, industry; person headline.
+
+Cost watch: ~$0.004 per profile; log li_last_scraped_at.
+
+ESP mapping
+
+EmailGuard API for recipient MX/ESP → recipient_esp.
+
+Compose route = sender_esp + → + recipient_esp.
+
+Flag exclude_if_outlook = true per policy.
+
+Optional signals
+
+Instagram follower count (Claygen); ig_followers, ig_checked_at.
+
+StoreLeads fields (if relevant to offer).
+
+Phase 3 — Copy & agents (Days 8–12 in parallel)
+
+Octave agents
+
+Create at least 3 bodies:
+
+A: Internal Discussion (short).
+
+B: Josh Braun-style (pattern-interrupt).
+
+C: Long-form (for regulated/clinical ICPs).
+
+Variables to pass from Clay: {first_name}, {role}, {company}, {company_desc_snippet}, {pain}, {benefit}, {proof} (case study short), {CTA}.
+
+Personalization first line
+
+Clay transform to compress LinkedIn description into 1 sentence with a unique detail: e.g., “Saw {Company} focuses on {niche phrase from LI}, esp. {segment}.”
+
+CTAs
+
+Keep CTAs modular in sequencer (if using body-only approach): e.g., “Open to a 12-min chat Wed/Thu?” and a calendar-less option “Worth a quick reply?”
+
+Round-robin assignment
+
+In Clay, create column copy_variant with A/B/C rotating per row; subject_variant default “S1”.
+
+Phase 4 — Campaign build (Days 12–14)
+
+Instantly setup
+
+Campaigns segmented by persona and route (e.g., Doctors-UK_G→G_LongBody).
+
+Add custom fields for intro line and body.
+
+Daily mailbox caps aligned with warmup; stagger send windows; disable weekend sends if needed.
+
+Exclude Outlook recipients by pre-filter from Clay.
+
+Import rows
+
+From Clay (verified & enriched). Ensure each row has: intro_line, body_text, subject, agent_id, route, campaign_tag.
+
+Tracking fields
+
+Store Instantly campaign_id and per-row message_id back to Clay.
+
+Smartlead/Bison
+
+Mirror campaigns if you need parallel capacity. Ensure reply webhook endpoints in Clay are configured for each platform.
+
+Phase 5 — Reply capture & handoff (go-live week)
+
+Clay webhook
+
+Endpoints listening to Instantly and Bison.
+
+Normalize fields; detect language; classify intent.
+
+Slack pushes
+
+Internal: #hot-replies every Interested/Referral with summary + phone (if appended).
+
+Client: their channel with a slightly redacted payload as agreed.
+
+Phone append for Interested
+
+Trigger phone enrichment upon intent = Interested; add to payload.
+
+Salesforce push (per client)
+
+Create/Upsert Lead/Contact with Source = Outbound: <Sequencer>, attach all fields (ESP route, agent_id, subject_variant, LI snippet).
+
+SDR handling
+
+SLA: call within 15 minutes when phone exists; otherwise reply within 30 minutes.
+
+Book meeting and write back meeting link & date into Clay.
+
+Phase 6 — Measurement, optimization, and deliverability (weekly rhythm)
+
+Airtable dashboards
+
+Tabs: Performance (open/reply/interest/meeting by agent & subject), Deliverability (by route), Bounces (by verifier).
+
+Copy iteration
+
+Week 1: determine winning body (A/B/C).
+
+Week 2: freeze body; test 3 subjects (S1/S2/S3).
+
+Week 3+: micro-tune intros, CTAs, and PS lines; add 1 new agent variant monthly.
+
+Deliverability actions
+
+If a route underperforms (e.g., custom→Outlook), reduce volume or exclude.
+
+Rotate domains, refresh mailboxes, and increase personalization to reduce similarity.
+
+Bounce guardrail
+
+If bounces >1.5% in any batch: halt, re-verify segment, reintroduce with different subset.
+
+Phase 7 — TAM management & re-engagement
+
+Suppression window
+
+Suppress anyone contacted within 90 days (Instantly lookup + Google Sheets ledger).
+
+Re-approach
+
+After 90d, re-enter with new offer + new agent family; do not reuse subject lines.
+
+Evergreen upkeep
+
+Append every send outcome to Sheets + Clay; ensure one truth on last touch & results.
+
+Phase 8 — Ops & governance
+
+Hoop hygiene
+
+Ensure every Slack/client email “To-Do” is captured; assign owner & due date.
+
+WhatsApp protocol
+
+Use for quick “we’re live / need approval” only; do not treat as system of record.
+
+Compliance & ethics
+
+Respect scraping/tool ToS; avoid PII beyond business contact norms; accept that some LLM calls will block personal email extraction—route around by using company sources.
+
+Phase 9 — Documentation & SOPs (ship within 2 weeks)
+
+SOP 1: Apify → Clay ingestion.
+
+SOP 2: Verification chain (MillionVerifier → BounceMan).
+
+SOP 3: Claygen LinkedIn enrichment and cost guardrails.
+
+SOP 4: Octave agent creation, testing, and versioning.
+
+SOP 5: Instantly campaign build & field mapping.
+
+SOP 6: Clay webhooks → Slack/Salesforce.
+
+SOP 7: Weekly review ritual & change log.
+
+KPIs & guardrails (make these visible in Airtable)
+
+Bounce rate: ≤ 1.0% weekly average; hard stop at 1.5% batch.
+
+Open rate: benchmark by route; expect G→G to outperform.
+
+Positive reply (Interested): track by agent (body) and subject.
+
+Meetings booked: per 1,000 sends; SDR SLA compliance.
+
+Cost per 1k net-sendable leads: Apify + verification + enrichment (target <$6/1k excluding sequencing).
+
+“Tiny details” checklist for the lead-gen strategy
+
+Use Clay round-robin to stamp an agent label onto each row before export.
+
+Generate body-only from Octave so you can test CTAs and greetings in Instantly.
+
+First line pulls a unique noun phrase from LinkedIn description (don’t just restate the whole blurb).
+
+Stamp li_desc_hash to avoid re-personalizing the same text if the company description hasn’t changed.
+
+Always capture sender_esp and compute route; segment campaigns accordingly.
+
+Pre-exclude Outlook recipients if the client’s sender pool struggles with Outlook.
+
+When an Interested arrives, immediately run phone append and push to Slack + Salesforce; put the phone number in the first line of the Slack message.
+
+Log model & cost when using Claygen/agents (e.g., “40-mini” for cheap tasks; reserve pricier models for fuzzy tasks).
+
+Record campaign_id and message_id back into Clay so replies can be joined to the exact template/agent/subject.
+
+Maintain a 90-day suppression; use Instantly existing-campaign lookup + Google Sheets ledger to enforce it.
+
+For international targets, store language code from reply classification and spin localized follow-ups as needed.
+
+Keep Apify run IDs and Apollo source URLs for reproducibility and auditing.
+
+What you’ll need to green-light today
+
+Confirm stack: Clay, Instantly, Apify (Apollo Scraper by CodeCrafter), Octave, MillionVerifier, BounceMan, EmailGuard, Airtable, Slack, Salesforce, Hoop, Google Sheets.
+
+Approve budgets: Apify ($1k tier), Email verification credits (MV + BM), Airtable Pro, Octave plan, Instantly seats/domains.
+
+Assign owners per phase (MOps, Data Eng, SDR Lead, Copy Lead).
+
+Agree on Outlook exclusion policy and 90-day suppression rule.
